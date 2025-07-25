@@ -1,0 +1,11 @@
+{
+  "name": "Celery Worker",
+  "type": "python",
+  "request": "launch",
+  "module": "celery",
+  "args": [
+    "-A", "celery_worker.celery_app",
+    "worker",
+    "--loglevel=info"
+  ]
+}
