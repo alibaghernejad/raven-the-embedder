@@ -1,14 +1,10 @@
 from collections import namedtuple
-import os
-from unittest import loader
 from fastembed import SparseTextEmbedding, TextEmbedding, LateInteractionTextEmbedding
 from datasets import load_dataset
 from datasets import Dataset
 from qdrant_client import QdrantClient
 import uvicorn
-from datatypes import DatasetEmbedding
 from fastapi import FastAPI
-from pydantic import BaseModel
 import uvicorn
 from api import  router
 import subprocess
