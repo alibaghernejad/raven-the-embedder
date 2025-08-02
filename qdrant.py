@@ -3,7 +3,6 @@ from celery import uuid
 from qdrant_client import QdrantClient, models
 import tqdm
 
-from datatypes import DatasetEmbedding
 import helpers
 from models import EmbeddingTask
 
