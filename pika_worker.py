@@ -1,10 +1,9 @@
-
-
 import logging
 import pika
 import json
 from Settings import Settings
 from embedding_pipeline import process_embedding_task
+from retry import retry
 
 settings = Settings()
 
@@ -22,61 +21,23 @@ def callback(ch, method, properties, body):
         except Exception as inner_e:
             logging.error(f"Error acknowledging message: {inner_e}")
 
-def start_consumer():
-    params = pika.URLParameters(settings.rabbitmq_broker_url)
+params = pika.URLParameters(settings.rabbitmq_broker_url)
+@retry((pika.exceptions.AMQPConnectionError,pika.exceptions.ConnectionClosedByBroker), delay=5, max_delay=60, jitter=(1, 3))
+def consume():
+
+    logging.info(f"Connecting to RabbitMQ at {settings.rabbitmq_broker_url}")
     connection = pika.BlockingConnection(params)
     channel = connection.channel()
     channel.queue_declare(queue=settings.embedding_task_queue, durable=True)
     channel.basic_qos(prefetch_count=1)
     channel.basic_consume(queue=settings.embedding_task_queue, on_message_callback=callback)
-    print(f"[*] Waiting for messages in queue '{settings.embedding_task_queue}'. To exit press CTRL+C")
-    while True:
-        try:
-            channel.start_consuming()
-        except EOFError:
-            print("[!] EOFError: Lost connection to broker, retrying...")
-            try:
-                channel.stop_consuming()
-            except Exception:
-                pass
-            try:
-                connection.close()
-            except Exception:
-                pass
-            import time
-            time.sleep(2)
-            # Reconnect
-            params = pika.URLParameters(settings.rabbitmq_broker_url)
-            connection = pika.BlockingConnection(params)
-            channel = connection.channel()
-            channel.queue_declare(queue=settings.embedding_task_queue, durable=True)
-            channel.basic_qos(prefetch_count=1)
-            channel.basic_consume(queue=settings.embedding_task_queue, on_message_callback=callback)
-            print(f"[*] Waiting for messages in queue '{settings.embedding_task_queue}'. To exit press CTRL+C")
-            continue
-        except KeyboardInterrupt:
-            print("\n[!] Consumer stopped by user.")
-            try:
-                channel.stop_consuming()
-            except Exception:
-                pass
-            break
-        except Exception as e:
-            logging.error(f"Unexpected error in consumer: {e}")
-            try:
-                channel.stop_consuming()
-            except Exception:
-                pass
-            try:
-                connection.close()
-            except Exception:
-                pass
-            break
+    logging.info(f"[*] Waiting for messages in queue '{settings.embedding_task_queue}'. To exit press CTRL+C")
     try:
+        channel.start_consuming()
+    except KeyboardInterrupt:
+        channel.stop_consuming()
         connection.close()
-    except Exception:
-        pass
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    start_consumer()
+    consume()
